@@ -12,6 +12,8 @@ const Patient = mongoose.model(
     city: String,
     address: String,
     phone_number: Number,
+    height: Number,
+    weight: Number,
 
   })
 );

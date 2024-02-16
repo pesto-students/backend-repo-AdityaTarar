@@ -1,5 +1,6 @@
 const controller = require("../../controllers/patient/bookappointment.controllers");
 const checkTimeSlotAvailability = require('../../middlewares/verifyTimeSlot')
+const createAccountLimiter = require('../../middlewares/rateLimiter')
 const verifyToken = require("../../middlewares/authJwt");
 module.exports = function (app) {
   app.use(function (req, res, next) {
@@ -17,5 +18,5 @@ module.exports = function (app) {
   app.get("/api/doctor/getAppointmentByPatient", controller.getAppointmentByPatient);
   app.get("/api/doctor/getAllDoctorList", controller.getAllDoctorList);
   app.post("/api/doctor/getVideoConferenceDetails", controller.getVideoConferenceDetails);
-  app.get("/api/doctor/fetchDoctorDetails", controller.fetchDoctorDetails);
+  app.get("/api/doctor/fetchDoctorDetails", [createAccountLimiter], controller.fetchDoctorDetails);
 };

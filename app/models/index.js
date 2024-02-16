@@ -13,4 +13,5 @@ db.videoConference = require('./videoConference.model')
 db.medicines = require('./medicines.model')
 db.vitals = require('./vitals.model')
 db.payments = require('./payments.model')
+db.otp = require('./otp.model')
 module.exports = db;

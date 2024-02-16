@@ -31,6 +31,7 @@ const Appointments = mongoose.model('Appointments', new mongoose.Schema({
   paymentMode: String,
   paymentId: String,
   issue: String,
-  consultationFee: Number
+  consultationFee: Number,
+  doctorDetails: Object
 }))
 module.exports = Appointments

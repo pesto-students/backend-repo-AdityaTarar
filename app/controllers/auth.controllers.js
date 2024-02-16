@@ -5,6 +5,7 @@ const Doctor = db.doctor;
 var jwt = require("jsonwebtoken");
 var bcrypt = require("bcryptjs");
 var CryptoJS = require("crypto-js");
+const OTP = db.otp;
 
 // Patient controller
 exports.patientSignup = async (req, res) => {
@@ -36,6 +37,8 @@ exports.patientSignup = async (req, res) => {
       city: req.body.city,
       address: req.body.address,
       phone_number: req.body.phone_number,
+      height: Number(req.body.height),
+      weight: Number(req.body.weight),
     });
 
     await patient.save();
@@ -55,7 +58,7 @@ exports.patientSignin = async (req, res) => {
     const patient = await Patient.findOne({ email: formData.email });
 
     if (!patient) {
-      return res.status(404).send({ message: "Patient Not found." });
+      return res.status(201).send({ message: "Patient Not found." });
     }
 
     const passwordIsValid = bcrypt.compareSync(formData.password, patient.password);
@@ -83,6 +86,8 @@ exports.patientSignin = async (req, res) => {
       city: patient.city,
       address: patient.address,
       phone_number: patient.phone_number,
+      height: patient.height,
+      weight: patient.weight
     };
 
     res.status(200).send({ data: responseData, token: token, refreshToken: refreshToken });
@@ -217,7 +222,29 @@ exports.changePassword = async (req, res) => {
     res.status(500).json({ message: 'Error changing password.', error: error.message });
   }
 };
+exports.forgotPassword = async (req, res) => {
+  try {
+    const { mobileNumber, otp, password, userType } = req.body;
+    const otpRecord = await OTP.findOne({ mobileNumber, otp });
 
+    if (!otpRecord) {
+      return res.status(400).json({ message: 'Invalid or expired OTP.' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+    if (userType === 'patient') {
+      await Patient.findOneAndUpdate({ phone_number: mobileNumber }, { password: hashedPassword });
+
+    } else {
+      await Doctor.findOneAndUpdate({ phone_number: mobileNumber }, { password: hashedPassword });
+
+    }
+    await OTP.findByIdAndDelete(otpRecord._id);
+    res.json({ message: 'Password reset successfully.' });
+  } catch (error) {
+
+  }
+}
 exports.refreshToken = async (req, res) => {
   const { refreshToken } = req.body;
   if (!refreshToken) return res.status(401).send({ message: "Refresh Token is required" });

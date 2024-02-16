@@ -8,6 +8,9 @@ var axios = require("axios").default;
 const moment = require('moment');
 var CryptoJS = require("crypto-js");
 
+const accountSid = process.env.TWILIO_SID_TOKEN;
+const authToken = process.env.TWILIO_AUTH_TOKEN;
+const client = require('twilio')(accountSid, authToken);
 
 exports.doctorSearch = async (req, res) => {
   try {
@@ -89,8 +92,8 @@ exports.bookApoointmentController = async (req, res) => {
   var bytes = CryptoJS.AES.decrypt(appointmentData, "pestohealth");
   var formData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8));
   const { doctorId, date, time } = formData
-  console.log('doctorId', doctorId);
   try {
+    const doctorDetails = await Doctor.findById(doctorId)
     const appointment = new Appointments({
       doctorId: formData.doctorId,
       patientId: formData.patientId,
@@ -103,10 +106,10 @@ exports.bookApoointmentController = async (req, res) => {
       paymentMode: formData.paymentMode,
       paymentId: formData.paymentId,
       issue: formData.issue,
-      consultationFee: formData.consultationFee
+      consultationFee: formData.consultationFee,
+      doctorDetails: doctorDetails
     });
     const appointmentResponse = await appointment.save()
-
 
     if (appointmentResponse?.onlineConsultation) {
       var options = {
@@ -184,7 +187,8 @@ exports.bookApoointmentController = async (req, res) => {
       patientInfo: appointment.patientInfo,
       date: appointment.date,
       time: appointment.time,
-      doctorId: appointment?.doctorId
+      doctorId: appointment?.doctorId,
+      doctorDetails: doctorDetails
     };
     const payments = new Payments({
       appointmentId: appointment?._id,
@@ -199,7 +203,19 @@ exports.bookApoointmentController = async (req, res) => {
       consultationFee: formData.consultationFee
     });
     await payments.save()
+
     res.status(201).json({ data: responseData, message: 'Appointmnet has been created successfully' })
+    // if (appointmentResponse) {
+    //   const messageBody = `Appointment booked successfully with ${`Dr .${doctorDetails.first_name} ${doctorDetails.last_name}`} on ${appointmentResponse.date} at ${appointmentResponse.time}.`;
+    //   client.messages
+    //     .create({
+    //       body: messageBody,
+    //       to: '+918412962312',
+    //       from: '+13145495492'
+    //     })
+    //     .then(message => console.log(message.sid))
+    //     .done();
+    // }
   } catch (error) {
     console.error('Error searching doctors:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -233,41 +249,61 @@ exports.cancelAppointment = async (req, res) => {
 }
 
 exports.recheduleAppointment = async (req, res) => {
-  const { appointmentId, date, newTime, oldTime, doctorId } = req.body
+  const { appointmentId, newDate, newTime, oldDate, oldTime, doctorId } = req.body;
   try {
+    // First, update the appointment itself with the new date and time
     const updateAppointment = await Appointments.findOneAndUpdate({ appointmentId: appointmentId }, {
-      date: date,
+      date: newDate,
       time: newTime,
       status: 'recheduled'
-    })
+    }, { new: true });
+
     if (!updateAppointment) {
-      return res.status(404).send({ message: 'Appointment not found' })
+      return res.status(404).send({ message: 'Appointment not found' });
     }
 
-    await DoctorAvailability.findOneAndUpdate(
-      { doctorId, 'availability.date': date },
-      {
-        $pull: {
-          'availability.$.unavailableTimeSlots': oldTime
+    // If the date has changed, remove the old time slot from the old date
+    if (newDate !== oldDate) {
+      await DoctorAvailability.findOneAndUpdate(
+        { doctorId, 'availability.date': oldDate },
+        {
+          $pull: {
+            'availability.$.unavailableTimeSlots': oldTime
+          }
         }
-      },
-      { new: true }
-    );
-    await DoctorAvailability.findOneAndUpdate(
-      { doctorId, 'availability.date': date },
-      {
-        $push: {
-          'availability.$.unavailableTimeSlots': newTime
+      );
+      // Add the new time slot to the new date
+      await DoctorAvailability.updateOne(
+        { doctorId, 'availability.date': newDate },
+        {
+          $push: {
+            'availability.$.unavailableTimeSlots': newTime
+          }
+        },
+        { upsert: true } // This will add a new date if it doesn't exist
+      );
+    } else {
+      // If the date hasn't changed, just update the time slot
+      await DoctorAvailability.findOneAndUpdate(
+        { doctorId, 'availability.date': newDate },
+        {
+          $pull: {
+            'availability.$.unavailableTimeSlots': oldTime
+          },
+          $push: {
+            'availability.$.unavailableTimeSlots': newTime
+          }
         }
-      },
-      { new: true }
-    );
-    res.status(200).send({ message: 'Appointment recheduled successfully' })
+      );
+    }
+
+    res.status(200).send({ message: 'Appointment rescheduled successfully' });
   } catch (error) {
-    console.error('Error searching doctors:', error);
+    console.error('Error rescheduling appointment:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
-}
+};
+
 
 exports.getAppointmentStatusByID = async (req, res) => {
   const { appointmentId } = req.body;
@@ -314,7 +350,7 @@ exports.getAppointmentByPatient = async (req, res) => {
 
     // Create the final response object
     const response = {
-      upcomingAppointments: upcomingAppointments,
+      upcomingAppointments: upcomingAppointments.filter((appointment) => appointment.status !== 'cancelled'),
       pastAppointments: pastAppointments
     };
 
