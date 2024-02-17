@@ -331,15 +331,15 @@ exports.getAppointmentByPatient = async (req, res) => {
       });
     }
 
-    const pastAppointments = appointmentsList.filter(appointment => appointment.date < currentDate);
-    const upcomingAppointments = appointmentsList.filter(appointment => appointment.date >= currentDate);
+    const pastAppointments = appointmentsList.filter(appointment => appointment.date < currentDate || appointment.status === 'cancelled' || appointment.status === 'completed');
+    const upcomingAppointments = appointmentsList.filter(appointment => appointment.date >= currentDate && appointment.status !== 'cancelled' && appointment.status !== 'completed');
 
     pastAppointments.sort((a, b) => (a.date > b.date) ? -1 : 1);
 
     upcomingAppointments.sort((a, b) => (a.date > b.date) ? 1 : -1);
 
     const response = {
-      upcomingAppointments: upcomingAppointments.filter((appointment) => appointment.status !== 'cancelled'),
+      upcomingAppointments: upcomingAppointments,
       pastAppointments: pastAppointments
     };
 

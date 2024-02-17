@@ -10,4 +10,5 @@ module.exports = function (app) {
   app.post("/api/doctor/getMyUpcommingAppointments", controller.getMyUpcommingAppointments);
   app.post("/api/doctor/addMedication", controller.addMedication);
   app.post("/api/doctor/getAppointmentByDoctors", controller.getAppointmentByDoctors);
+  app.post("/api/doctor/completeAppointment", controller.completeAppointment);
 };
