@@ -5,22 +5,30 @@ exports.updateVitals = async (req, res) => {
   const { patientId, patientVitals } = req.body;
 
   try {
-    // Find existing vitals document for the patient
     const existingVital = await Vitals.findOne({ patientId });
 
     if (!existingVital) {
-      // If no existing document, create a new one
       const newVitals = new Vitals({
         patientId,
-        patientVitals: [patientVitals], // Create an array with the first set of vitals
+        patientVitals: [patientVitals],
       });
 
       await newVitals.save();
       res.status(200).json({ message: 'New vitals have been saved.' });
     } else {
-      // If existing document, update the patientVitals array
-      existingVital.patientVitals = existingVital.patientVitals || []; // Ensure patientVitals is initialized as an array
-      existingVital.patientVitals.push(patientVitals);
+      const latestVitals = existingVital.patientVitals[existingVital.patientVitals.length - 1] || {};
+      const updatedVitals = {};
+      Object.keys(patientVitals).forEach(key => {
+        if (patientVitals[key] !== "0") {
+          updatedVitals[key] = patientVitals[key];
+        } else if (latestVitals[key] !== undefined) {
+          updatedVitals[key] = latestVitals[key];
+        }
+      });
+
+      updatedVitals.date = patientVitals.date || latestVitals.date;
+
+      existingVital.patientVitals.push(updatedVitals);
       await existingVital.save();
       res.status(200).json({ message: 'Vitals have been updated successfully.' });
     }
@@ -28,7 +36,8 @@ exports.updateVitals = async (req, res) => {
     console.error(error);
     res.status(500).json({ message: 'Internal server error.' });
   }
-}
+};
+
 exports.getAllVitalsByPatient = async (req, res) => {
   const { patientId } = req.body
   console.log('patientId', patientId);

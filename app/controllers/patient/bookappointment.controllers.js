@@ -205,17 +205,17 @@ exports.bookApoointmentController = async (req, res) => {
     await payments.save()
 
     res.status(201).json({ data: responseData, message: 'Appointmnet has been created successfully' })
-    // if (appointmentResponse) {
-    //   const messageBody = `Appointment booked successfully with ${`Dr .${doctorDetails.first_name} ${doctorDetails.last_name}`} on ${appointmentResponse.date} at ${appointmentResponse.time}.`;
-    //   client.messages
-    //     .create({
-    //       body: messageBody,
-    //       to: '+918412962312',
-    //       from: '+13145495492'
-    //     })
-    //     .then(message => console.log(message.sid))
-    //     .done();
-    // }
+    if (appointmentResponse) {
+      const messageBody = `Appointment booked successfully with ${`Dr .${doctorDetails.first_name} ${doctorDetails.last_name}`} on ${appointmentResponse.date} at ${appointmentResponse.time}.`;
+      client.messages
+        .create({
+          body: messageBody,
+          to: `+91${formData.patientInfo?.contact_number}`,
+          from: '+13145495492'
+        })
+        .then(message => console.log(message.sid))
+        .done();
+    }
   } catch (error) {
     console.error('Error searching doctors:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -251,7 +251,6 @@ exports.cancelAppointment = async (req, res) => {
 exports.recheduleAppointment = async (req, res) => {
   const { appointmentId, newDate, newTime, oldDate, oldTime, doctorId } = req.body;
   try {
-    // First, update the appointment itself with the new date and time
     const updateAppointment = await Appointments.findOneAndUpdate({ appointmentId: appointmentId }, {
       date: newDate,
       time: newTime,
@@ -262,7 +261,6 @@ exports.recheduleAppointment = async (req, res) => {
       return res.status(404).send({ message: 'Appointment not found' });
     }
 
-    // If the date has changed, remove the old time slot from the old date
     if (newDate !== oldDate) {
       await DoctorAvailability.findOneAndUpdate(
         { doctorId, 'availability.date': oldDate },
@@ -272,7 +270,6 @@ exports.recheduleAppointment = async (req, res) => {
           }
         }
       );
-      // Add the new time slot to the new date
       await DoctorAvailability.updateOne(
         { doctorId, 'availability.date': newDate },
         {
@@ -280,10 +277,9 @@ exports.recheduleAppointment = async (req, res) => {
             'availability.$.unavailableTimeSlots': newTime
           }
         },
-        { upsert: true } // This will add a new date if it doesn't exist
+        { upsert: true }
       );
     } else {
-      // If the date hasn't changed, just update the time slot
       await DoctorAvailability.findOneAndUpdate(
         { doctorId, 'availability.date': newDate },
         {
@@ -308,15 +304,12 @@ exports.recheduleAppointment = async (req, res) => {
 exports.getAppointmentStatusByID = async (req, res) => {
   const { appointmentId } = req.body;
   try {
-    // Assuming appointmentId is a valid ObjectId
     const appointment = await Appointments.findOne({ appointmentId: appointmentId });
 
     if (!appointment) {
-      // If no appointment is found, return a 404 status with a message
       return res.status(404).json({ message: 'Appointment not found' });
     }
 
-    // If the appointment is found, return it in the response
     res.status(200).json(appointment);
   } catch (error) {
     console.error('Error searching appointment by ID:', error);
@@ -338,17 +331,13 @@ exports.getAppointmentByPatient = async (req, res) => {
       });
     }
 
-    // Separate appointments into past and upcoming based on the appointment date
     const pastAppointments = appointmentsList.filter(appointment => appointment.date < currentDate);
     const upcomingAppointments = appointmentsList.filter(appointment => appointment.date >= currentDate);
 
-    // Sort past appointments by date in descending order
     pastAppointments.sort((a, b) => (a.date > b.date) ? -1 : 1);
 
-    // Sort upcoming appointments by date in ascending order
     upcomingAppointments.sort((a, b) => (a.date > b.date) ? 1 : -1);
 
-    // Create the final response object
     const response = {
       upcomingAppointments: upcomingAppointments.filter((appointment) => appointment.status !== 'cancelled'),
       pastAppointments: pastAppointments
